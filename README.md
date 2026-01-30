@@ -3574,6 +3574,139 @@ sudo ip route add 172.16.1.0/24 dev ligolo
 
 ## Web
 
+### Enumeración Web
+
+#### Diccionarios utiles
+
+```
+/usr/share/wordlists/seclists/Discovery/Web-Content/quickhits.txt
+```
+
+#### Fuff
+
+```bash
+# Fuzzing de directorios y archivos
+ffuf -c -u http://<RHOST>/FUZZ -w <WORDLIST> -t 20
+ffuf -c -u http://<RHOST>/FUZZ -mc all --fs <NUMBER> -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+ffuf -c -u http://<RHOST>/FUZZ -mc all --fw <NUMBER> -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+ffuf -c -u http://<RHOST>/FUZZ -mc 200,204,301,302,307,401 -w /usr/share/wordlists/dirb/common.txt -o ffuf_scan.txt
+ffuf -c -u http://<RHOST>/FUZZ -recursion -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e 
+.php,.txt,.html,.cgi,.bkp,.zip
+ffuf -w /opt/useful/seclists/Usernames/xato-net-10-million-usernames.txt -u http://172.17.0.2/index.php -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=FUZZ&password=invalid" -fr "Unknown user"
+
+# POST
+ffuf -u http://<RHOST>/post.php -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "x=FUZZ" -w /usr/share/seclists/Discovery/Web-Content/common.txt -mc 200 -v
+
+# -ic ignora inteligentemente las líneas comentadas durante el fuzzing, evitando que se traten como entradas válidas
+ffuf -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -ic -v -u http://IP:PORT/FUZZ -e .html -recursion
+
+# Fuzzing a través de proxychains
+ffuf -c -recursion-depth 2 -x socks5://localhost:4444 -u http://<RHOST>/FUZZ -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e .php
+
+# Fuzzing de subdominios
+ffuf -c -u http://<RHOST>/FUZZ -H 'Host: FUZZ.<RHOST>' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -t 20 -fs <NUMBER>
+
+# LFI
+ffuf -c -fs <NUMBER> -u http://<RHOST>/admin../admin_staging/index.php?page=FUZZ -w /usr/share/wordlists/seclists/Fuzzing/LFI/LFI-Jhaddix.txt
+
+# Fuzzing con PHP Session ID
+ffuf -c -fw 2644 -u "http://<RHOST>/admin/FUZZ.php" -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-small.txt -b "PHPSESSID=a0mjo6ukbkq271nb2rkb1joamp"
+
+# API
+ffuf -c -ac -t 250 -fc 400,404,412 -u https://<RHOST>/api/v1/FUZZ -w api_seen_in_wild.txt 
+```
+
+#### Gobuster
+
+```bash
+gobuster dir -u http://<RHOST>/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+gobuster dir -u http://<RHOST>/ -w /usr/share/seclists/Discovery/Web-Content/big.txt -x php
+gobuster dir -u http://<RHOST>/ -w /usr/share/wordlists/dirb/big.txt -x php,txt,html,js -e -s 200
+gobuster dir -u https://<RHOST>:<RPORT>/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-medium.txt -b 200 -k --wildcard
+
+# VHost Discovery
+gobuster vhost -u <RHOST> -t 50 -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain
+
+# Subdomain
+gobuster dns --domain inlanefreight.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
+```
+
+Parámetros:
+
+- `-e` Modo extendido que muestra la URL completa
+- `-k` Ingnora la validación del certificado SSL
+- `-r` Redirecciones
+- `-s` Código de estado
+- `-b` Excluye códigos de estado
+- `--wildcard` Establecer la opción comodín
+
+#### Wfuzz
+
+```bash
+# Fuzzing de directorio
+wfuzz -c -u http://<RHOST>/FUZZ -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-medium.txt --hc 403,404
+
+# Fuzzing de archivos
+wfuzz -c -u http://<RHOST>/FUZZ/<FILE>.php -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-medium.txt --hc 403,404 -f <FILE>
+
+# Fuzzing de dos parámetros
+wfuzz -c -u http://<RHOST>:/<directory>/FUZZ.FUZ2Z -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-medium.txt -z list,txt-php --hc 403,404
+
+# Subdominios
+wfuzz <RHOST> -H "Host: FUZZ.<RHOST>" -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt --hc 200 --hw 356 -t 100
+
+# Login
+wfuzz -X POST -u "http://<RHOST>:<RPORT>/login.php" -d "username=FUZZ&password=<PASSWORD>" -w /usr/share/wordlists/seclists/Usernames/xato-net-10-million-usernames.txt--hc 200 -c
+wfuzz -X POST -u "http://<RHOST>:<RPORT>/login.php" -d "username=FUZZ&password=<PASSWORD>" -w /usr/share/wordlists/seclists/Usernames/xato-net-10-million-usernames.txt --ss "Username or Password Invalid"
+```
+
+#### wenum (Wfuzz Fork)
+
+```bash
+wenum -c -w wordlist.txt --hc 404 -u http://example.com/FUZZ	                        # Basic fuzzing excluding 404 responses.
+wenum -c -w wordlist.txt -d 'username=FUZZ&password=secret' -u http://example.com/login	# Fuzz POST data in a form.
+wenum -c -w wordlist.txt -b 'session=12345' -u http://example.com/FUZZ	                # Use a specific cookie for requests.
+wenum -c -w wordlist.txt -H 'User-Agent: Wenum' -u http://example.com/FUZZ	            # Add a custom header to requests.
+wenum -c -w wordlist.txt -t 50 -u http://example.com/FUZZ	                            # Set the number of threads (e.g., 50) for faster fuzzing.
+wenum -c -w wordlist.txt -X PUT -u http://example.com/FUZZ	                            # Fuzz using a specific HTTP method (e.g., PUT).
+wenum -c -w wordlist.txt --hs 50 -u http://example.com/FUZZ	                            # Filter responses by content length (e.g., 50 bytes).
+```
+
+#### Feroxbuster
+
+```bash
+feroxbuster -u http://example.com -w wordlist.txt	                # Basic URL fuzzing with a wordlist.
+feroxbuster -u http://example.com -w wordlist.txt -e	            # Include specified file extensions in fuzzing.
+feroxbuster -u http://example.com -w wordlist.txt -x 404	        # Exclude responses with status code 404.
+feroxbuster -u http://example.com -w wordlist.txt -t 50	            # Set the number of concurrent threads (e.g., 50).
+feroxbuster -u http://example.com -w wordlist.txt --depth 3	        # Set maximum recursion depth (e.g., 3 levels deep).
+feroxbuster -u http://example.com -w wordlist.txt -o results.txt	# Save output to a file.
+feroxbuster -u http://example.com -w wordlist.txt --no-recursion	# Disable recursion into discovered directories.
+feroxbuster -u http://example.com -w wordlist.txt --url-redirect	# Follow redirects automatically.
+```
+#### GitTools
+
+```bash
+git clone https://github.com/arthaud/git-dumper.git
+python3 -m venv venv
+source venv/bin/activate
+cd git-dumper
+pip3 install -r requirements.txt
+python3 git-dumper.py http://<RHOST>/.git/ website
+./extractor.sh website
+```
+
+#### API
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+git clone https://github.com/PandaSt0rm/webfuzz_api.git
+cd webfuzz_api
+pip3 install -r requirements.txt
+python3 api_fuzzer.py http://IP:PORT
+```
+
 ### SQL Injection
 
 #### MySQL
